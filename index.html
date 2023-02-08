@@ -1,273 +1,361 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0"
-    />
-    <title>Big</title>
-    <link href="big.css" rel="stylesheet" type="text/css" />
-    <script src="big.js"></script>
-  </head>
 
-  <body class="light">
-    <div>
-      <span>Python, Rust and Regexes</span>
-      <notes>Speakers notes go here.</notes>
-    </div>
-    <div>
-      <span>whoami</span>
-      <ul>
-        <li>Nisanthan Nanthakumar</li>
-        <li>Engineer @ Sentry</li>
-        <li>The photo of me is from 11th grade</li>
-      </ul>
-      <notes>Speakers notes go here.</notes>
-    </div>
-    <div>
-      <img src="./sentry-logo.svg" style="width: 100vw" />
-      <notes>Error and Performance monitoring</notes>
-      <notes>Open Source</notes>
-      <notes>Django and React</notes>
-    </div>
-    <div>
-      <img src="./sentry-issuelist-branding-screenshot.jpeg" />
-    </div>
-    <div>Capture an error. Then what?</div>
-    <div>
-      Who should we assign to fix this?
-      <notes
-        >We want to need to figure out who is the person/team that can resolve
-        this issue and assign it to them.</notes
-      >
-    </div>
-    <div>
-      The tools
-      <ul>
-        <li>Ownership Rules (pre-2020)</li>
-        <li>CODEOWNERS (industry standard)</li>
-      </ul>
-    </div>
-    <div>Import their CODEOWNERS file. Not so easy.</div>
-    <div>Source code filepaths != Stacktrace filepaths</div>
-    <div>CI/CD -> transform, bundle, minify, deploy</div>
-    <div>Code Mappings</div>
-    <div>Code Mapping * (Source code filepath) == Stacktrace filepath</div>
-    <div><i>n</i> number of Code Mappings</div>
-    <div>
-      <pre>
-combined_CODEOWNERS = [CODEOWENRS*code_mapping for code_mapping in list_of_code_mappings]</pre
-      >
-      <pre>for rule in combined_CODEOWNERS:</pre>
-      <pre> for filepath in stacktrace:</pre>
-      <pre>   return to_regex(rule).search(filepath)</pre>
-    </div>
-    <div>Does this scale?</div>
-    <div>
-      <ul>
-        <li>O(n^2)</li>
-        <li>We calculate on every event</li>
-        <li>CODEOWNERS can get up to 3mb</li>
-        <li>CODEOWNERS limited to 100k characters</li>
-      </ul>
-    </div>
-    <div>Ideas</div>
-    <div>
-      <ol>
-        <li>use Rust's regex engine</li>
-        <li>use trie</li>
-      </ol>
-    </div>
-    <div>Start with Idea #1</div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+  <title>Big</title>
+  <link href="big.css" rel="stylesheet" type="text/css" />
+  <script src="big.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+  <!-- and it's easy to individually load additional languages -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/go.min.js"></script>
+  <script>
+    hljs.initHighlightingOnLoad();
+  </script>
+</head>
 
-    <div>
-      <pre>
-combined_CODEOWNERS = [CODEOWENRS*code_mapping for code_mapping in list_of_code_mappings]</pre
-      >
-      <pre>for rule in combined_CODEOWNERS:</pre>
-      <pre> for filepath in stacktrace:</pre>
-      <pre>   return <em>to_regex</em>(rule).search(filepath)</pre>
-    </div>
-    <div>Rewrote in rust. Now what?</div>
-    <div>Is this an improvement?</div>
-    <div>Gotta benchmark</div>
-    <div>pyperf</div>
-    <div>
-      Benchmarking PR:
-      <a href="https://github.com/getsentry/sentry/pull/43294" target="_blank"
-        >https://github.com/getsentry/sentry/pull/43294</a
-      >
-    </div>
-    <div>
-      Test Conditions:
-      <ul>
-        <li>Replicate the expected max load.</li>
-        <li>3mb CODEOWNERS with 5 code mappings</li>
-      </ul>
-    </div>
-    <div>
-      <table role="table">
-        <thead>
-          <tr>
-            <th>Benchmark</th>
-            <th>python_implementation</th>
-            <th>rust_implementation</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Mean</td>
-            <td>12.9 sec / 250.0 MB</td>
-            <td>12.8 sec / 250.9 MB</td>
-          </tr>
-          <tr>
-            <td>Median</td>
-            <td>12.0 sec / 250.8 MB</td>
-            <td>12.7 sec / 250.6 MB</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div>Not really an improvement</div>
-    <div>Run a benchmark test where the implementation diverges</div>
-    <div>
-      <table role="table">
-        <thead>
-          <tr>
-            <th>Benchmark</th>
-            <th>python_implementation</th>
-            <th>rust_implementation</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Mean</td>
-            <td>28.7 us</td>
-            <td>121 us</td>
-          </tr>
-          <tr>
-            <td>Median</td>
-            <td>26.5 us</td>
-            <td>123 us</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div>Why is Rust implementation slow?</div>
-    <div>Regex compilation takes a long time.</div>
-    <div>Time to look at source code.</div>
-    <div>
-      CPython
-      <pre>re</pre>
-      package
-      <a
-        href="https://github.com/python/cpython/blob/5a8ed019f9b826d2ba5766688d51005624cd0699/Lib/re/__init__.py#L302"
-        target="_blank"
-        >caches the compiled regexes</a
-      >
-    </div>
-    <div>Now create a LRU Cache for our Rust implementation</div>
-    <div>Benchmark again</div>
-    <div>
-      <table role="table">
-        <thead>
-          <tr>
-            <th>Benchmark</th>
-            <th>python_implementation</th>
-            <th>rust_implementation</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Mean</td>
-            <td>15.5 sec</td>
-            <td>8.90 sec</td>
-          </tr>
-          <tr>
-            <td>Median</td>
-            <td>15.3 sec</td>
-            <td>8.66 sec</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div>So it is faster. But we need to test in prod.</div>
-    <div>Feature flag it to our sentry org</div>
-    <div>
-      <table role="table">
-        <thead>
-          <tr>
-            <th>Benchmark</th>
-            <th>python_implementation</th>
-            <th>rust_implementation</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>p99</td>
-            <td>0.3138660 sec</td>
-            <td>0.1863830 sec</td>
-          </tr>
-          <tr>
-            <td>Mean</td>
-            <td>0.0251634 sec</td>
-            <td>0.0222657 sec</td>
-          </tr>
-          <tr>
-            <td>Median</td>
-            <td>0.0177220 sec</td>
-            <td>0.0166900 sec</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div>p99 shows the difference in speeds</div>
-    <div>Test with 15mb combined CODEOWNERS</div>
-    <div>
-      <table role="table">
-        <thead>
-          <tr>
-            <th>Benchmark</th>
-            <th>python_implementation</th>
-            <th>rust_implementation</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>p99</td>
-            <td>52.955376 sec</td>
-            <td>20.571008 sec</td>
-          </tr>
-          <tr>
-            <td>Median</td>
-            <td>45.749216 sec</td>
-            <td>18.598373 sec</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div>Faster, but not the magnitude faster I was expecting.</div>
-    <div>Python's regex engine is already pretty fast.</div>
-    <div>Is this good enough?</div>
-    <div>Probably not.</div>
-    <div>Shortcut to engineering: Change the system requirements.</div>
-    <div>Do we really need to calculate on every event?</div>
-    <div>
-      Nope. We should debounce events and prevent unnecessary calculations.
-      <notes>Assignments usually shouldn't change on every event</notes>
-    </div>
-    <div>Monitor and limit the fallout</div>
-    <div>
-      If this isn't enough, we can implement the trie.
-      <notes>This has it's own tradeoffs. Memory constraints.</notes>
-    </div>
-    <div>
-      What we could have done better.
-      <ul>
-        <li>Should have gathered current system metrics in the beginning.</li>
-        <li>Could have used a Profiler (Sentry Profiler)</li>
-      </ul>
-    </div>
-  </body>
+<body class="light">
+  <div>
+    <span>Python, Rust and Regexes</span>
+  </div>
+  <div>
+    <span>whoami</span>
+    <ul>
+      <li>Nisanthan Nanthakumar</li>
+      <li>Senior Engineer @ Sentry</li>
+      <li>The photo of me is from 11th grade</li>
+    </ul>
+  </div>
+  <div>
+    <img src="./sentry-wordmark-dark.png" />
+    <notes>Sentry is an error and performance monitoring tool that gives engineers
+      comprehensive visibility into their code so they can see the issues that
+      matter in real-time, solve them faster with actionable details, and
+      learn from historical trends to optimize code health overtime.</notes>
+    <notes>Open Source</notes>
+    <notes>Django and React</notes>
+  </div>
+  <div>
+    <img src="./sentry-issuelist-branding-screenshot.jpeg" />
+    <notes>screenshot!!!</notes>
+  </div>
+  <div>
+    Capture an error. Then what?
+    <notes>You've just built the next big app.</notes>
+    <notes> Instrumented with Sentry SDK</notes>
+    <notes>Got your first bug in production</notes>
+  </div>
+  <div>
+    Who should we assign to fix this?
+    <notes>We want to need to figure out who is the person/team that can resolve
+      this issue and assign it to them.</notes>
+  </div>
+  <div>
+    The tools
+    <ul>
+      <li>Ownership Rules (pre-2020)</li>
+      <li>CODEOWNERS (industry standard)</li>
+    </ul>
+    <notes>
+      Ownership Rules lets you create rules on the stacktrace filepaths, urls
+      or event tags. This was our original method to provide Issue Ownership
+      for our users.
+    </notes>
+    <notes>Companies adopted the standard set by GitHub/GitLab. Companies will
+      only use maintain 1 set of rules and thats going to be
+      CODEOWNERS.</notes>
+  </div>
+  <div>Import their CODEOWNERS file. Not so easy.</div>
+  <div>Source code filepaths != Stacktrace filepaths</div>
+  <div>CI/CD -> transform, bundle, minify, deploy</div>
+  <div>Code Mappings</div>
+  <div>Code Mapping * (Source code filepath) == Stacktrace filepath</div>
+  <div><i>n</i> number of Code Mappings</div>
+  <div>
+    <pre>
+        <code >
+          combined_CODEOWNERS = [CODEOWENRS * code_mapping for code_mapping in list_of_code_mappings]
+        
+          for rule in combined_CODEOWNERS:
+        
+            for filepath in stacktrace:
+       
+              return to_regex(rule).search(filepath)
+        </code>
+    </pre>
+  </div>
+  <div>Does this scale?</div>
+  <div>
+    <ul>
+      <li>O(n^2)</li>
+      <li>We calculate on every event</li>
+      <li>CODEOWNERS can get up to 3mb</li>
+      <li>CODEOWNERS limited to 100k characters</li>
+    </ul>
+  </div>
+  <div>Ideas</div>
+  <div>
+    <ol>
+      <li>use Rust's regex engine</li>
+      <li>use trie</li>
+    </ol>
+  </div>
+  <div>Trie</div>
+  <div>
+    <ul>
+      <li>tree data structure</li>
+      <li>lookups are O(m) where <i>m</i> is the string length</li>
+      <li>tradeoff is memory</li>
+    </ul>
+  </div>
+  <div>
+    <pre>path/to/my/file.py</pre>
+    <pre>path/to/my/*</pre>
+  </div>
+  <div>
+    <img src="./trie-example.png" />
+  </div>
+  <div>
+    <pre>*/to/my/file.py</pre>
+    <pre>path/*/my/file.py</pre>
+    Requires regex engine for these cases
+  </div>
+  <div>Start with Idea #1</div>
+
+  <div>
+    <pre>
+        combined_CODEOWNERS = [CODEOWENRS * code_mapping for code_mapping in list_of_code_mappings]
+      
+        for rule in combined_CODEOWNERS:
+      
+          for filepath in stacktrace:
+     
+            return <em>to_regex(rule).search(filepath)</em>
+    </pre>
+  </div>
+  <div>Rewrite!! Always fun!</div>
+  <div>
+    Rust -> C ABI that is used by Python
+    <notes>ABI stands for Application Binary Interface</notes>
+  </div>
+  <div>
+    <div>relay-cabi/src/processing.rs</div>
+    <pre>
+      <code>
+        #[no_mangle]
+        #[relay_ffi::catch_unwind]
+        pub unsafe extern "C" fn relay_is_codeowners_path_match(
+            value: *const RelayBuf,
+            pattern: *const RelayStr,
+        ) -> bool {
+            let regex = translate_codeowners_pattern((*pattern).as_str());
+            return Ok(regex.is_match((*value).as_bytes()));
+        }
+      </code>
+    </pre>
+    <notes>relay_ffi::catch_unwind is a macro that captures errors and panics in a
+      thread-local on `unsafe` functions.</notes>
+    <notes>no_mangle is a macro that prevents the compiler from mangling the
+      symbols. That is because C does not understand mangling.</notes>
+  </div>
+  <div>
+    <div>py/sentry_relay/processing.py</div>
+    <pre class="language-py">
+      <code>
+
+        def is_codeowners_path_match(value, pattern):
+
+          if isinstance(value, text_type):
+
+              value = value.encode("utf-8")
+
+          return rustcall(lib.relay_is_codeowners_path_match, make_buf(value), encode_str(pattern))
+      </code>
+    </pre>
+    <notes>rustcall calls the rust method and does some error handling.
+    </notes>
+  </div>
+  <div>
+    Cut a new library release and now we can use this method in Sentry
+  </div>
+  <div>Rewrote in rust. Now what?</div>
+  <div>Is this an improvement?</div>
+  <div>Gotta benchmark</div>
+  <div>pyperf</div>
+  <div>
+    Benchmarking PR:
+    <a href="https://github.com/getsentry/sentry/pull/43294"
+      target="_blank">https://github.com/getsentry/sentry/pull/43294</a>
+  </div>
+  <div>
+    Test Conditions:
+    <ul>
+      <li>Replicate the expected max load.</li>
+      <li>3mb CODEOWNERS with 5 code mappings</li>
+    </ul>
+  </div>
+  <div>
+    <table role="table">
+      <thead>
+        <tr>
+          <th>Benchmark</th>
+          <th>python_implementation</th>
+          <th>rust_implementation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Mean</td>
+          <td>12.9 sec / 250.0 MB</td>
+          <td>12.8 sec / 250.9 MB</td>
+        </tr>
+        <tr>
+          <td>Median</td>
+          <td>12.0 sec / 250.8 MB</td>
+          <td>12.7 sec / 250.6 MB</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div>Not really an improvement</div>
+  <div>Run a benchmark test where the implementation diverges</div>
+  <div>
+    <table role="table">
+      <thead>
+        <tr>
+          <th>Benchmark</th>
+          <th>python_implementation</th>
+          <th>rust_implementation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Mean</td>
+          <td>28.7 us</td>
+          <td>121 us</td>
+        </tr>
+        <tr>
+          <td>Median</td>
+          <td>26.5 us</td>
+          <td>123 us</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div>Why is Rust implementation slow?</div>
+  <div>Regex compilation takes a long time.</div>
+  <div>Time to look at source code.</div>
+  <div>
+    CPython
+    <pre>re</pre>
+    package
+    <a href="https://github.com/python/cpython/blob/5a8ed019f9b826d2ba5766688d51005624cd0699/Lib/re/__init__.py#L302"
+      target="_blank">caches the compiled regexes</a>
+  </div>
+  <div>Now create a LRU Cache for our Rust implementation</div>
+  <div>Benchmark again</div>
+  <div>
+    <table role="table">
+      <thead>
+        <tr>
+          <th>Benchmark</th>
+          <th>python_implementation</th>
+          <th>rust_implementation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Mean</td>
+          <td>15.5 sec</td>
+          <td>8.90 sec</td>
+        </tr>
+        <tr>
+          <td>Median</td>
+          <td>15.3 sec</td>
+          <td>8.66 sec</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div>So it is faster. But we need to test in prod.</div>
+  <div>Feature flag it to our sentry org</div>
+  <div>
+    <table role="table">
+      <thead>
+        <tr>
+          <th>Benchmark</th>
+          <th>python_implementation</th>
+          <th>rust_implementation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>p99</td>
+          <td>0.3138660 sec</td>
+          <td>0.1863830 sec</td>
+        </tr>
+        <tr>
+          <td>Mean</td>
+          <td>0.0251634 sec</td>
+          <td>0.0222657 sec</td>
+        </tr>
+        <tr>
+          <td>Median</td>
+          <td>0.0177220 sec</td>
+          <td>0.0166900 sec</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div>p99 shows the difference in speeds</div>
+  <div>Test with 15mb combined CODEOWNERS</div>
+  <div>
+    <table role="table">
+      <thead>
+        <tr>
+          <th>Benchmark</th>
+          <th>python_implementation</th>
+          <th>rust_implementation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>p99</td>
+          <td>52.955376 sec</td>
+          <td>20.571008 sec</td>
+        </tr>
+        <tr>
+          <td>Median</td>
+          <td>45.749216 sec</td>
+          <td>18.598373 sec</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div>Faster, but not the magnitude faster I was expecting.</div>
+  <div>Python's regex engine is already pretty fast.</div>
+  <div>Is this good enough?</div>
+  <div>Probably not.</div>
+  <div>Shortcut in engineering: Change the system requirements.</div>
+  <div>Do we really need to calculate on every event?</div>
+  <div>
+    Nope. We should debounce events and prevent unnecessary calculations.
+    <notes>Assignments usually shouldn't change on every event</notes>
+  </div>
+  <div>Monitor and limit the fallout</div>
+  <div>
+    If this isn't enough, we can implement the trie.
+    <notes>This has it's own tradeoffs. Space complexity is O(m*n)</notes>
+  </div>
+  <div>
+    What we could have done better.
+    <ul>
+      <li>Should have gathered current system metrics in the beginning.</li>
+      <li>Could have used a Profiler (Sentry Profiler)</li>
+    </ul>
+  </div>
+</body>
+
 </html>

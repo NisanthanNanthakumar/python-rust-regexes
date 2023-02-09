@@ -181,3 +181,18 @@ th {
 td {
   padding: 0.2em;
 }
+
+.layout {
+  display: grid;
+}
+
+.layout div {
+  display: flex;
+  align-items: center;
+}
+
+.layout img {
+  object-fit: contain;
+  width: 100%;
+  height: 100%;
+}
